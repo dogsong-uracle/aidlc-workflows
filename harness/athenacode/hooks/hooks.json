@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun .athena/hooks/aidlc-athenacode-adapter.ts session-start",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun .athena/hooks/aidlc-athenacode-adapter.ts continue-workflow",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

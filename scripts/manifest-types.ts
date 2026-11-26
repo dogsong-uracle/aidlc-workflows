@@ -69,6 +69,17 @@ export type OnboardingSpec = {
   fills: OnboardingFills;
 };
 
+export type JsonRegistrySpec = {
+  /** Root object member containing the registry (e.g. "hooks"). */
+  key: string;
+  /** Group field that distinguishes registrations within an event. */
+  matcherKey: string;
+  /** Group field holding the registration handler array. */
+  handlersKey: string;
+  /** Stable handler field used with event and matcher to identify ownership. */
+  identityKey: string;
+};
+
 export type RootIntegration = {
   /** Project-root path emitted by this distribution. */
   path: string;
@@ -82,7 +93,9 @@ export type RootIntegration = {
    * while unchanged; its part ships in root-blocks, and a copy leaves the file
    * out.
    */
-  policy: "managed-block" | "json-map" | "json-array" | "whole-file" | "jsonc-settings" | "json-entries";
+  policy: "managed-block" | "json-map" | "json-array" | "whole-file" | "jsonc-settings" | "json-entries" | "json-registry";
+  /** Registration identity contract for a JSON object containing grouped handler arrays. */
+  registry?: JsonRegistrySpec;
   /** Stable marker identity for managed-block integrations. */
   marker?: string;
   /**
@@ -290,7 +303,7 @@ export type HarnessManifest = {
    * new harness picks its projection shape in its manifest - the packager
    * never infers it from the harness name.
    */
-  tierFlavor: "claude" | "codex" | "kiro" | "opencode" | "copilot" | "cursor";
+  tierFlavor: "claude" | "codex" | "kiro" | "opencode" | "copilot" | "cursor" | "athenacode";
   /**
    * Kiro rows only: which tree layout this row ships. `agent-v1` is the Kiro CLI
    * agent-JSON layout (JSON agents with hooks embedded in them); `kas` is the

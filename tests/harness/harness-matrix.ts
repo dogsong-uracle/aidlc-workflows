@@ -39,7 +39,8 @@ type HarnessCapabilities = {
     | "cursor-rule"
     | "kiro-resources"
     | "kiro-steering"
-    | "opencode-instructions";
+    | "opencode-instructions"
+    | "athena-no-native-include";
   kiroAgentJson: boolean;
   ideAgentTools: boolean;
   reviewerScopeRegistration: ReviewerScopeRegistration;
@@ -175,6 +176,27 @@ const HARNESS_CAPABILITIES = {
     ideAgentTools: true,
     reviewerScopeRegistration: "kiro-agent-json",
   },
+  athenacode: {
+    harnessDir: ".athena",
+    onboarding: {
+      mode: "manifest",
+      fills: "onboarding.fills.ts",
+      dist: "AGENTS.md",
+      harnessDist: ".athena/onboarding.md",
+    },
+    rootFiles: [".athenamodes", "AGENTS.md"],
+    skillsRoot: ".athena/skills",
+    plugin: {
+      kind: "store",
+      manifestDir: ".athena-plugin",
+      marketplaceDir: ".athena-plugin",
+      wiringFile: null,
+    },
+    memoryInclude: "athena-no-native-include",
+    kiroAgentJson: false,
+    ideAgentTools: false,
+    reviewerScopeRegistration: "unsupported",
+  },
   opencode: {
     harnessDir: ".aidlc",
     onboarding: {
@@ -299,6 +321,8 @@ function validateManifest(
       (manifest.orchestratorSkillPath === ".agents/skills/aidlc/SKILL.md") ||
     (capabilities.memoryInclude === "opencode-instructions") !==
       manifest.harnessFiles.some((file) => file.dst === "opencode.json") ||
+    (capabilities.memoryInclude === "athena-no-native-include") !==
+      (name === "athenacode" && manifest.onboarding?.projectRoot === true) ||
     (capabilities.memoryInclude === "copilot-agents-md") !==
       (manifest.onboarding?.projectRoot === true &&
         manifest.onboarding.dst === "AGENTS.md" &&

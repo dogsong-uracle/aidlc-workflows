@@ -369,7 +369,7 @@ export function assertProjectionPathHasNoSymlinks(
 }
 
 export function isSafeOnboardingPath(value: unknown, harnessDir: string): value is string {
-  return typeof value === "string" && /^[A-Za-z0-9._\/-]+$/.test(value) &&
+  return typeof value === "string" && /^[A-Za-z0-9._/-]+$/.test(value) &&
     !value.split("/").some((segment) => segment === "" || segment === "." || segment === "..") &&
     value.startsWith(`${harnessDir}/`);
 }
@@ -654,7 +654,7 @@ export function copyChannelOmits(
 // An optional settings file a copy starts without, as `config` does by
 // default: Claude Code's .mcp.json, whose servers would otherwise all be
 // offered at first start. Its shipped list still travels in root-blocks.
-export function copyStartsWithout(integration: Pick<RootIntegration, "policy" | "optional">): boolean {
+export function copyStartsWithout(integration: { policy: string; optional?: boolean }): boolean {
   return integration.policy === "json-map" && integration.optional === true;
 }
 
@@ -662,7 +662,7 @@ export function copyStartsWithout(integration: Pick<RootIntegration, "policy" | 
 // file a copy starts without, is also copied, byte for byte, to
 // <harnessDir>/tools/data/root-blocks/<marker or file name>, inside the
 // harness folder a copy brings along. Only a managed block has a marker.
-export function shipsRootBlock(integration: Pick<RootIntegration, "policy" | "optional">): boolean {
+export function shipsRootBlock(integration: { policy: string; optional?: boolean }): boolean {
   return integration.policy === "managed-block" || integration.policy === "json-entries" ||
     copyStartsWithout(integration);
 }

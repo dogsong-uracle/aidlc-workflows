@@ -47,7 +47,8 @@ export type ModelHarness =
   | "cursor"
   | "kiro"
   | "kiro-ide"
-  | "opencode";
+  | "opencode"
+  | "athenacode";
 export type ModelPolicyLayer =
   | "agent-exception"
   | "group-dial"
@@ -168,6 +169,13 @@ export const HARNESS_HONESTY = Object.freeze({
     message:
       "GitHub Copilot runs every agent on the model you choose in its model picker (/model in the Copilot CLI), so a model or effort set here is kept for other tools and changes nothing in GitHub Copilot.",
   }),
+  athenacode: Object.freeze({
+    model: false,
+    effort: false,
+    groupEffort: false,
+    message:
+      "Athena Code inherits the session model and effort; this install has no verified per-agent model field.",
+  }),
 });
 
 type HarnessHonesty = {
@@ -199,6 +207,7 @@ export function presetsChangeNothing(harness: ModelHarness): boolean {
 // this, so they never disagree on where a change lands.
 export function modelPolicyAgentsDir(harness: ModelHarness, harnessDir: string): string | null {
   if (harness === "opencode") return ".opencode/agents";
+  if (harness === "athenacode") return null;
   if (harness === "claude" || harness === "codex" || harness === "kiro" || harness === "kiro-ide") {
     return `${harnessDir}/agents`;
   }
@@ -216,6 +225,7 @@ export const HARNESS_PRODUCT_NAMES: Readonly<Record<ModelHarness, string>> = Obj
   kiro: "Kiro CLI",
   "kiro-ide": "Kiro",
   opencode: "opencode",
+  athenacode: "Athena Code",
 });
 
 // The one sentence setup and doctor show on those harnesses. A recorded policy
@@ -434,7 +444,8 @@ export function profileGroups(
 }
 
 function tierHarness(harness: ModelHarness): TierHarness {
-  return harness === "kiro-ide" ? "kiro" : harness;
+  if (harness === "kiro-ide") return "kiro";
+  return harness;
 }
 
 function projectedEffort(value: ReturnType<typeof projectTier>): ModelEffort | undefined {

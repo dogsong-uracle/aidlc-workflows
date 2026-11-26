@@ -57,6 +57,7 @@ const EXPECTED: Record<
     cursor: { model: string | null };
     kiro: { model: string | null };
     opencode: { model: string | null; variant: "medium" | null };
+    athenacode: { model: null; effort: null };
   }
 > = {
   judgment: {
@@ -65,6 +66,7 @@ const EXPECTED: Record<
     cursor: { model: null },
     kiro: { model: null },
     opencode: { model: null, variant: null },
+    athenacode: { model: null, effort: null },
   },
   balanced: {
     // Balanced is the reviewer tier; medium effort pinned after live A/B showed
@@ -81,6 +83,7 @@ const EXPECTED: Record<
     // the session model.
     kiro: { model: null },
     opencode: { model: null, variant: "medium" },
+    athenacode: { model: null, effort: null },
   },
   templated: {
     claude: { model: "inherit", effort: null },
@@ -88,6 +91,7 @@ const EXPECTED: Record<
     cursor: { model: null },
     kiro: { model: null },
     opencode: { model: null, variant: null },
+    athenacode: { model: null, effort: null },
   },
 };
 
@@ -127,7 +131,7 @@ describe("t220 tier projection module", () => {
 
   // --- projectTier: every tier x every projection flavor ---------------------
   for (const tier of TIERS) {
-    for (const flavor of ["claude", "codex", "cursor", "kiro", "opencode"] as const) {
+    for (const flavor of ["claude", "codex", "cursor", "kiro", "opencode", "athenacode"] as const) {
       test(`projectTier(${tier}, ${flavor}) matches the pinned policy`, () => {
         expect(projectTier(tier, flavor)).toEqual(EXPECTED[tier][flavor]);
       });

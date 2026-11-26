@@ -394,6 +394,7 @@ describe("t293 model policy resolution", () => {
       ["kiro", ".kiro"],
       ["kiro-ide", ".kiro"],
       ["opencode", ".aidlc"],
+      ["athenacode", ".athena"],
     ];
     for (const [harness, dir] of roots) {
       const tiers = readAgentTiers(join(DIST, harness, dir));
@@ -862,9 +863,10 @@ describe("t293 config models CLI", () => {
     };
     // Hooks find aidlc and bun, so nothing is left for the person to do.
     const ready = change("xhigh", hookPath(["aidlc", "bun"]));
-    expect(ready.trimEnd().split("\n").at(-1)).toBe(
-      "  Recorded Reviewing effort xhigh in aidlc.settings.json. To undo: bun .claude/tools/aidlc.ts config models --reset --project --yes",
-    );
+    const undoLine = ready.trimEnd().split("\n").at(-1) ?? "";
+    expect(undoLine).toContain("Recorded Reviewing effort xhigh in aidlc.settings.json. To undo: bun ");
+    expect(undoLine).toContain("/.claude/tools/aidlc.ts config models --reset --project --yes --project-dir ");
+    expect(undoLine).toContain(project);
     expect(ready).not.toContain("configured model policy");
     expect(ready).not.toContain("Outstanding actions:");
     // Hooks cannot find aidlc: that step still follows the change.
@@ -1805,6 +1807,7 @@ describe("t293 doctor model policy advisory", () => {
       ["kiro", ".kiro"],
       ["kiro-ide", ".kiro"],
       ["opencode", ".aidlc"],
+      ["athenacode", ".athena"],
     ] as const) {
       const shipped = JSON.parse(
         readFileSync(join(DIST, harness, dir, "tools", "data", "harness.json"), "utf-8"),
@@ -1812,7 +1815,7 @@ describe("t293 doctor model policy advisory", () => {
       expect(HARNESS_PRODUCT_NAMES[harness], harness).toBe(shipped.productName);
     }
     expect(Object.keys(HARNESS_PRODUCT_NAMES).sort()).toEqual(
-      ["claude", "codex", "copilot", "cursor", "kiro", "kiro-ide", "opencode"],
+      ["athenacode", "claude", "codex", "copilot", "cursor", "kiro", "kiro-ide", "opencode"],
     );
   });
 

@@ -129,7 +129,7 @@ export interface ProjectHarness {
   frameworkVersion?: string;
 }
 
-const HARNESS_PRECEDENCE = [".claude", ".kiro", ".codex", ".cursor", ".aidlc"] as const;
+const HARNESS_PRECEDENCE = [".claude", ".kiro", ".codex", ".cursor", ".aidlc", ".athena"] as const;
 
 function markerRecord(path: string): Record<string, unknown> {
   let value: unknown;
@@ -810,15 +810,18 @@ export function runtimeHarnessName(
     basename(projectDir) === harnessDir && existsSync(join(projectDir, "tools"))
       ? projectDir
       : join(projectDir, harnessDir);
-  for (const root of [projectRoot, MODULE_HARNESS_ROOT]) {
-    const name = readHarnessName(root);
-    if (name) return name;
+  const projectName = readHarnessName(projectRoot);
+  if (projectName) return projectName;
+  if (basename(MODULE_HARNESS_ROOT) === harnessDir) {
+    const moduleName = readHarnessName(MODULE_HARNESS_ROOT);
+    if (moduleName) return moduleName;
   }
 
   // Copilot and OpenCode intentionally share .aidlc. Their harness.json name
   // above is the authoritative discriminator; retain OpenCode only as the
   // metadata-unavailable compatibility fallback.
   if (harnessDir === ".aidlc") return "opencode";
+  if (harnessDir === ".athena") return "athenacode";
   if (harnessDir === ".codex") return "codex";
   if (harnessDir === ".kiro") return "kiro";
   if (harnessDir === ".cursor") return "cursor";
@@ -987,6 +990,7 @@ const HOST_LABELS: Readonly<Record<string, string>> = {
   kiro: "Kiro CLI",
   "kiro-ide": "Kiro",
   opencode: "opencode",
+  athenacode: "Athena Code",
 };
 
 // A limit is a positive whole number; anything else declares none.
@@ -1066,7 +1070,7 @@ export function linkOnTheWay(projectDir: string, target: string): string | null 
 // as far as it is made of these, so no name a repository chose reaches the
 // reader: a link deeper down is named by the AI-DLC folder that holds it.
 const AIDLC_FOLDER_NAMES = new Set([
-  ".aidlc", ".agents", ".claude", ".codex", ".cursor", ".github", ".kiro", ".opencode",
+  ".aidlc", ".agents", ".athena", ".claude", ".codex", ".cursor", ".github", ".kiro", ".opencode",
   "agents", "aidlc", "aidlc-common", "command", "data", "hooks", "knowledge", "plugin",
   "rules", "scopes", "sensors", "settings", "skills", "spaces", "stages", "steering", "tools",
 ]);

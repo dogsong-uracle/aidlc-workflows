@@ -960,6 +960,14 @@ describe("t248 codekb freshness: AI-DLC's own files", () => {
     expect(snapshot()).not.toBe(before);
   });
 
+  test("the Athena runtime directory is excluded even before its metadata is present", () => {
+    const proj = installedProject();
+    mkdirSync(join(proj, ".athena"), { recursive: true });
+
+    const excluded = codekbFingerprintExcludes(proj, proj);
+    expect(excluded).toContain(".athena");
+  });
+
   test("the left-out paths come from the installed harness; a sibling repo leaves nothing out", () => {
     const proj = installedProject();
     expect(aidlcRootIntegrations(proj).map((integration) => integration.path).sort()).toEqual([".gitignore", ".mcp.json"]);

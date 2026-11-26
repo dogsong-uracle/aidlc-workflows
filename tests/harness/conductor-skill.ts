@@ -17,6 +17,7 @@ export const CONDUCTOR_SKILL_FILES = {
   "kiro-ide": ["SKILL.md", "workflow.md"],
   kiro: ["SKILL.md"],
   opencode: ["SKILL.md"],
+  athenacode: ["SKILL.md"],
 } as const satisfies Record<string, readonly string[]>;
 
 export type ConductorSkillHarness = keyof typeof CONDUCTOR_SKILL_FILES;

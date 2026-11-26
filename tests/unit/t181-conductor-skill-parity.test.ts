@@ -1261,6 +1261,7 @@ describe("t181 per-harness conductor-SKILL freshness gate (P11 RESOLVE-2)", () =
     ];
     for (const tree of trees) {
       if (tree.label !== "core") expectStepTwo(join(tree.protocols, "stage-protocol.md"), "### For subagent stages:");
+      if (tree.label === "athenacode") continue;
       const stories = join(tree.stages, "inception", "user-stories.md");
       expectDefers(stories, section(stories, "**Round 1 — dispatch the mob.**", "\n\n"));
 
@@ -1319,6 +1320,9 @@ describe("t181 per-harness conductor-SKILL freshness gate (P11 RESOLVE-2)", () =
     for (const harness of HARNESS_MATRIX) {
       const rel = `harness/${harness.name}/skills/aidlc/SKILL.md`;
       const body = readConductorSurface(rel);
+      if (harness.name === "athenacode") {
+        expect(body, rel).toContain("Athena Code 1.0.15");
+      }
       if (harness.name === "codex") {
         const token =
           "native **None of the above** escape or the numbered-prose **Other** escape with no words of their own";
@@ -1360,8 +1364,12 @@ describe("t181 per-harness conductor-SKILL freshness gate (P11 RESOLVE-2)", () =
     const protocol = read("core/aidlc-common/protocols/stage-protocol.md");
     expect(protocol).not.toContain("Select 'Other' on any question");
     expect(protocol).toContain(`"Pick "[the escape's label]" on any question to answer in your own words or talk it through."`);
-    // The agent reads the protocol, not always the annex, so the protocol names Claude Code's row too.
+    // The protocol names host-specific escapes only where the host uses them.
     expect(protocol).toContain(`Claude Code's picker: "Type something"`);
+    expect(read("harness/athenacode/skills/aidlc/question-rendering.md"))
+      .toContain("The audited Athena Code 1.0.15 build has no structured-question tool");
+    expect(read("harness/athenacode/skills/aidlc/SKILL.md"))
+      .toContain("Athena Code 1.0.15, use the numbered-prose convention");
     expect(read("harness/claude/skills/aidlc/question-rendering.md"))
       .toContain(`"Pick "Type\n  something" on any question to answer in your own words or talk it through."`);
     expect(read("harness/codex/skills/aidlc/question-rendering.md")).toContain(`"Pick "None of the above" on any question`);

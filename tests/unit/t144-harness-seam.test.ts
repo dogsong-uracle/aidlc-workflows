@@ -37,7 +37,7 @@ import { fileURLToPath } from "node:url";
 setDefaultTimeout(NATIVE_FIXTURE_SETUP_TIMEOUT_MS);
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const CLAUDE_TOOLS = join(REPO_ROOT, "dist", "claude", ".claude", "tools");
+const CLAUDE_TOOLS = join(REPO_ROOT, "core", "tools");
 const CLAUDE_LIB = join(CLAUDE_TOOLS, "aidlc-lib.ts");
 const LIB_SIBLINGS = [
   "aidlc-lib.ts",
@@ -115,8 +115,8 @@ function evalLib(
       cwd: opts.cwd ?? REPO_ROOT,
       env: {
         ...process.env,
-        AIDLC_HARNESS_DIR: undefined,
-        CLAUDE_PROJECT_DIR: undefined,
+        AIDLC_HARNESS_DIR: "",
+        CLAUDE_PROJECT_DIR: "",
         ...opts.env,
       } as NodeJS.ProcessEnv,
     },
@@ -130,7 +130,7 @@ describe("t144 codex harness seam — harnessDir + resolveProjectDir ladder ×3 
     expect(evalLib(CLAUDE_LIB, "harnessDir()")).toBe(".claude");
     const tmp = realpathSync(mkdtempSync(join(tmpdir(), "t144-")));
     try {
-      for (const h of [".kiro", ".codex"]) {
+      for (const h of [".kiro", ".codex", ".athena"]) {
         const lib = libInHarnessTree(join(tmp, h.slice(1)), h);
         expect(evalLib(lib, "harnessDir()")).toBe(h);
       }
@@ -140,12 +140,12 @@ describe("t144 codex harness seam — harnessDir + resolveProjectDir ladder ×3 
   });
 
   test("2: AIDLC_HARNESS_DIR env seam overrides derivation for every dir", () => {
-    for (const h of [".claude", ".kiro", ".codex"]) {
+    for (const h of [".claude", ".kiro", ".codex", ".athena"]) {
       expect(evalLib(CLAUDE_LIB, "harnessDir()", { env: { AIDLC_HARNESS_DIR: h } })).toBe(h);
     }
   });
 
-  test("3: CWD probe finds .codex when script-path derivation misses; .claude wins when both exist", () => {
+  test("3: CWD probe finds .codex and .athena when script-path derivation misses; .claude wins", () => {
     const tmp = realpathSync(mkdtempSync(join(tmpdir(), "t144-")));
     try {
       // Lib copied OUTSIDE any harness tree → derivation misses → CWD probe.
@@ -154,9 +154,11 @@ describe("t144 codex harness seam — harnessDir + resolveProjectDir ladder ×3 
         cpSync(join(CLAUDE_TOOLS, sibling), join(tmp, sibling));
       }
       cpSync(join(CLAUDE_TOOLS, "data"), join(tmp, "data"), { recursive: true });
+      mkdirSync(join(tmp, ".athena"));
+      expect(evalLib(libCopy, "harnessDir()", { cwd: tmp })).toBe(".athena");
       mkdirSync(join(tmp, ".codex"));
       expect(evalLib(libCopy, "harnessDir()", { cwd: tmp })).toBe(".codex");
-      // Precedence: .claude beats .codex when both are present.
+      // Precedence: .claude beats .codex and .athena when all are present.
       mkdirSync(join(tmp, ".claude"));
       expect(evalLib(libCopy, "harnessDir()", { cwd: tmp })).toBe(".claude");
     } finally {
@@ -167,7 +169,7 @@ describe("t144 codex harness seam — harnessDir + resolveProjectDir ladder ×3 
   test("4: resolveProjectDir strips <harness>/tools for every harness dir", () => {
     const tmp = realpathSync(mkdtempSync(join(tmpdir(), "t144-")));
     try {
-      for (const h of [".claude", ".kiro", ".codex"]) {
+      for (const h of [".claude", ".kiro", ".codex", ".athena"]) {
         const root = join(tmp, h.slice(1));
         const lib = libInHarnessTree(root, h);
         expect(evalLib(lib, "resolveProjectDir()", { cwd: tmp })).toBe(root);
@@ -187,7 +189,7 @@ describe("t144 codex harness seam — harnessDir + resolveProjectDir ladder ×3 
       }
       cpSync(join(CLAUDE_TOOLS, "data"), join(tmp, "data"), { recursive: true });
       const project = join(tmp, "proj");
-      mkdirSync(join(project, ".codex"), { recursive: true });
+      mkdirSync(join(project, ".athena"), { recursive: true });
       expect(evalLib(libCopy, "resolveProjectDir()", { cwd: project })).toBe(project);
     } finally {
       rmSync(tmp, { recursive: true, force: true });

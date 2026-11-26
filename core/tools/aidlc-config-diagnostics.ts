@@ -115,13 +115,14 @@ export type RuntimeRecord = {
 // answers use `current`, `amazon-bedrock`, or `other`.
 export type ProviderKind = "current" | "amazon-bedrock" | "builtin" | "other";
 
-// Kiro CLI and Kiro IDE provide their own model access. AI-DLC has no provider
-// decision to ask, write, or check for them, even when a legacy answer exists.
-export type BedrockOrientedHarness = Exclude<ModelHarness, "kiro" | "kiro-ide">;
+// Kiro and Athena Code provide model access through their own host session.
+// AI-DLC has no provider decision to ask, write, or check for these hosts.
+export type BedrockOrientedHarness = Exclude<ModelHarness, "kiro" | "kiro-ide" | "athenacode">;
 
 const HARNESS_OWNED_MODEL_ACCESS: ReadonlySet<ModelHarness> = new Set<ModelHarness>([
   "kiro",
   "kiro-ide",
+  "athenacode",
 ]);
 
 export function harnessOwnsModelAccess(
@@ -147,9 +148,7 @@ export function ownedModelAccessFact(product: string): string {
 
 export type ProviderMenuCopy = { bedrock: string };
 
-export function providerMenuCopy(
-  harness: BedrockOrientedHarness,
-): ProviderMenuCopy {
+export function providerMenuCopy(harness: BedrockOrientedHarness): ProviderMenuCopy {
   switch (harness) {
     case "claude":
       return { bedrock: "write the AWS region and profile to settings.local.json, just for you" };
@@ -161,6 +160,10 @@ export function providerMenuCopy(
       return { bedrock: "record the manual Copilot BYOK provider setup" };
     case "cursor":
       return { bedrock: "record the manual Cursor provider setup" };
+    default: {
+      const unreachable: never = harness;
+      throw new Error(`provider menu copy is not defined for ${unreachable}`);
+    }
   }
 }
 export type ProviderPendingStatus = "pending" | "done";
@@ -578,15 +581,7 @@ export function readConfigDiagnosticRecords(harnessRoot: string): ConfigDiagnost
     );
   }
   const distribution = value.distribution;
-  if (
-    distribution !== "claude" &&
-    distribution !== "codex" &&
-    distribution !== "copilot" &&
-    distribution !== "cursor" &&
-    distribution !== "kiro" &&
-    distribution !== "kiro-ide" &&
-    distribution !== "opencode"
-  ) {
+  if (typeof distribution !== "string" || !isModelHarness(distribution)) {
     throw new Error(`${path}: distribution must name a supported harness`);
   }
   const providers = normalizeProvidersRecord(value.providers);
@@ -783,6 +778,7 @@ export function runtimeCommandFiles(
     join(projectDir, harnessDir, "hooks"),
     join(projectDir, harnessDir, "agents"),
     join(projectDir, harnessDir, "skills"),
+    join(projectDir, harnessDir, "commands"),
     join(projectDir, ".github", "hooks"),
     join(projectDir, ".opencode", "command"),
   ];
@@ -942,6 +938,10 @@ const HARNESS_CLI: Record<
     required: false,
     minimumVersion: "2.24.1",
     install: "Kiro CLI is optional here: to run AI-DLC from a terminal, install or upgrade Kiro CLI to 2.24.1 or later; Kiro IDE-only installs may omit it.",
+  },
+  athenacode: {
+    required: false,
+    install: "Open the project in Uracle Athena Code 1.0.15; a standalone Athena CLI is not required or verified.",
   },
   // The adapter's object entry points ({ id, setup, server }) load from 1.18.29;
   // OpenCode 2 reports 2.x.

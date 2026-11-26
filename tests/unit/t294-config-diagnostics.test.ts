@@ -38,6 +38,7 @@ import {
   copilotTrustIssues,
   deriveNonInteractivePath,
   detectAwsCredentials,
+  runtimeCommandFiles,
   frameworkFilesDoctorCheck,
   harnessOwnsModelAccess,
   insideGitRepository,
@@ -750,6 +751,29 @@ describe("t294 runtime diagnostics", () => {
     });
   });
 
+  test("Athena runtime probe is optional and scans its managed hooks and command files", () => {
+    expect(probeHarnessCli("athenacode", { which: () => {
+      throw new Error("Athena must not invoke a standalone CLI probe");
+    } })).toEqual(expect.objectContaining({
+      harness: "athenacode",
+      required: false,
+      status: "not-applicable",
+      remediation: expect.stringContaining("standalone Athena CLI is not required or verified"),
+    }));
+
+    const project = temp("aidlc-t294-athenacode-runtime-");
+    mkdirSync(join(project, ".athena", "hooks"), { recursive: true });
+    mkdirSync(join(project, ".athena", "commands"), { recursive: true });
+    writeFileSync(join(project, ".athena", "hooks", "hooks.json"), JSON.stringify({
+      hooks: { SessionStart: [{ hooks: [{ command: "aidlc engine adapter athenacode session-start" }] }] },
+    }));
+    writeFileSync(join(project, ".athena", "commands", "aidlc.md"), "Read `.athena/tools/aidlc.ts`\n");
+
+    const files = runtimeCommandFiles(project, ".athena");
+    expect(files).toContain(join(project, ".athena", "hooks", "hooks.json"));
+    expect(files).toContain(join(project, ".athena", "commands", "aidlc.md"));
+  });
+
   test("harness CLI probes guard missing commands and enforce version floors", () => {
     const missingClaude = probeHarnessCli("claude", { which: () => null });
     expect(missingClaude).toEqual(expect.objectContaining({
@@ -773,6 +797,13 @@ describe("t294 runtime diagnostics", () => {
       required: false,
       status: "missing",
     }));
+
+    expect(runtimeDoctorChecks(temp("aidlc-t294-athenacode-doctor-"), undefined, {
+      runtime: { which: () => { throw new Error("Athena must not be probed as a CLI"); } },
+    })).toEqual([expect.objectContaining({
+      pass: true,
+      label: "Runtime hook environment: no installed project harness",
+    })]);
 
     // Kiro CLI is optional for this row, but it is probed: with only kiro-cli on
     // PATH, first-run setup must see this row too, not just the kiro row.
@@ -1685,6 +1716,40 @@ describe("t294 provider diagnostics", () => {
 });
 
 describe("t294 trust diagnostics", () => {
+  test("Athena native hook setup does not fail on an unsupported permission-trust surface", async () => {
+    const project = temp("aidlc-t294-trust-athenacode-");
+    cpSync(join(DIST_RELEASE, "athenacode"), project, { recursive: true });
+    const harnessRoot = join(project, ".athena");
+    const machine = temp("aidlc-t294-trust-athenacode-machine-");
+    const overrides = {
+      AIDLC_HARNESS_DIR: ".athena",
+      AIDLC_HARNESS_NAME: "athenacode",
+      AIDLC_RUNTIME_HARNESS_ROOT: harnessRoot,
+      AIDLC_RUNTIME_ROOT: DIST_RELEASE,
+      AIDLC_INSTALL_ROOT: machine,
+      AIDLC_BIN_DIR: join(machine, "bin"),
+      AIDLC_OFFLINE: "1",
+    };
+    const previous = new Map(Object.keys(overrides).map((key) => [key, process.env[key]]));
+    const compiled = spyOn(runtimePaths, "isCompiledExecutable").mockReturnValue(true);
+    try {
+      Object.assign(process.env, overrides);
+      const report = await collectDoctorReport(project);
+      const rows = report.checks.filter((check) => check.label.startsWith("Native command trust"));
+      expect(rows).toHaveLength(1);
+      expect(rows[0].pass, rows[0].label).toBe(true);
+      expect(rows[0].severity).toBe("warn");
+      expect(rows[0].label).toContain("Athena Code");
+      expect(rows[0].label).toContain("unverified");
+    } finally {
+      compiled.mockRestore();
+      for (const [key, value] of previous) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
+
   test("Codex doctor hashes configured seconds exactly and retains the omitted-timeout legacy identity", async () => {
     const project = temp("aidlc-t294-trust-timeouts-");
     cpSync(join(DIST_RELEASE, "codex"), project, { recursive: true });
@@ -7494,8 +7559,8 @@ process.exit(0);
     }
   }, NATIVE_FIXTURE_SETUP_TIMEOUT_MS);
 
-  test("only Kiro owns its own model access; every other harness is Bedrock-oriented", () => {
-    for (const harness of ["kiro", "kiro-ide"] as const) {
+  test("Kiro and Athena own their model access; other hosts are Bedrock-oriented", () => {
+    for (const harness of ["kiro", "kiro-ide", "athenacode"] as const) {
       expect(harnessOwnsModelAccess(harness)).toBe(true);
     }
     // Copilot and Cursor reach Bedrock through their own BYOK/provider settings,
@@ -8002,6 +8067,25 @@ process.exit(0);
 });
 
 describe("t294 invariants", () => {
+  test("reads diagnostic records for Athena Code harness metadata", () => {
+    const harnessRoot = temp("aidlc-t294-athenacode-");
+    const dataDir = join(harnessRoot, "tools", "data");
+    mkdirSync(dataDir, { recursive: true });
+    writeFileSync(join(dataDir, "harness.json"), `${JSON.stringify({
+      schemaVersion: 1,
+      distribution: "athenacode",
+      harnessDir: ".athena",
+    })}\n`);
+
+    expect(readConfigDiagnosticRecords(harnessRoot)).toEqual({
+      runtime: null,
+      providers: null,
+      trust: null,
+      project: null,
+      modelsAnswer: null,
+    });
+  });
+
   test("empty diagnostic records are byte-identical and the module imports no network API", () => {
     const project = temp("aidlc-t294-empty-");
     cpSync(join(DIST, "claude"), project, { recursive: true });

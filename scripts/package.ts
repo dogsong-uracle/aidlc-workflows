@@ -1496,6 +1496,7 @@ function rewriteNativeInvocations(
   // <harness>` dispatcher route. Only these project onto that route; any other
   // hook file keeps the generic one-argument `engine hook <name>` rewrite.
   const adapterHookNames: Record<string, true> = {
+    "athenacode-adapter": true,
     "kiro-adapter": true,
     "codex-adapter": true,
     "cursor-adapter": true,

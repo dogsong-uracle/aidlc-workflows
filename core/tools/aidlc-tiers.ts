@@ -107,6 +107,8 @@ export type TierProjection = {
    *  Agents inherit the session model (BYOK env on the CLI, the model picker
    *  on the IDE); the type makes a model leak structurally impossible. */
   copilot: { model: null };
+  /** Athena Code has no verified per-agent model/effort field yet. */
+  athenacode: { model: null; effort: null };
   /** Cursor agent .md frontmatter: `model:` (Cursor model id, e.g.
    *  "claude-opus-5-medium"). Model-only BY DESIGN, like kiro: Cursor has no
    *  effort key in agent frontmatter (effort rides the model id suffix). All
@@ -129,6 +131,7 @@ export const TIER_PROJECTIONS: Record<Tier, TierProjection> = {
     kiro: { model: null },
     opencode: { model: null, variant: null },
     copilot: { model: null },
+    athenacode: { model: null, effort: null },
     cursor: { model: null },
   },
   balanced: {
@@ -143,6 +146,7 @@ export const TIER_PROJECTIONS: Record<Tier, TierProjection> = {
     kiro: { model: null },
     opencode: { model: null, variant: "medium" },
     copilot: { model: null },
+    athenacode: { model: null, effort: null },
   },
   templated: {
     // The tier remains a models-dial group for pattern-following work, but the
@@ -153,6 +157,7 @@ export const TIER_PROJECTIONS: Record<Tier, TierProjection> = {
     kiro: { model: null },
     opencode: { model: null, variant: null },
     copilot: { model: null },
+    athenacode: { model: null, effort: null },
     cursor: { model: null },
   },
 };

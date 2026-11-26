@@ -61,6 +61,8 @@ import {
   kiroLayoutOf,
   kiroTreeLayout,
   runtimeHarnessDir,
+  runtimeHarnessName,
+  typedHarnessHosts,
   typedHarnessName,
 } from "../../core/tools/aidlc-runtime-paths.ts";
 import { installedKiroLayout } from "../../core/tools/aidlc-lib.ts";
@@ -2273,6 +2275,38 @@ describe("t230 dispatcher dev and compiled in-process modes", () => {
     expect(labels.some((label) => label.includes(".claude/settings.json"))).toBe(false);
   });
 
+  test("compiled main run by Athena Code in a project that also holds Claude Code reads the Athena install", () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "aidlc-t230-athena-beside-claude-"));
+    const machine = mkdtempSync(join(tmpdir(), "aidlc-t230-athena-beside-claude-machine-"));
+    tempProjects.add(projectDir);
+    tempProjects.add(machine);
+    cpSync(join(REPO_ROOT, "dist", "claude"), projectDir, { recursive: true });
+    cpSync(join(REPO_ROOT, "dist", "athenacode"), projectDir, { recursive: true });
+
+    const result = viaImportedCompiledMain(
+      ["doctor", "--project-dir", projectDir, "--json"],
+      projectDir,
+      {
+        AIDLC_BIN_DIR: join(machine, "bin"),
+        AIDLC_DISPATCH_TOOLS_DIR: CORE_TOOLS_DIR,
+        AIDLC_HARNESS_DIR: ".athena",
+        AIDLC_HARNESS_NAME: "athenacode",
+        AIDLC_INSTALL_ROOT: machine,
+        CLAUDECODE: "",
+        CLAUDE_CODE_SESSION_ID: "",
+      },
+    );
+    const report = JSON.parse(result.stdout.toString()) as {
+      data: { checks: Array<{ label: string }> };
+    };
+    const labels = report.data.checks.map((check) => check.label);
+    expect(labels).not.toContain("settings.json present");
+    expect(labels).not.toContain("plugin/aidlc-opencode-adapter.ts present (hook wiring)");
+    expect(labels.some((label) => label.includes("aidlc-athenacode-adapter.ts present"))).toBe(true);
+    expect(labels.some((label) => label.includes(".athena/hooks/hooks.json"))).toBe(true);
+    expect(labels.some((label) => label.includes("commands/aidlc.md present"))).toBe(true);
+  });
+
   test("compiled main run by Codex in a project that also holds Claude Code reads the Codex install", () => {
     const projectDir = mkdtempSync(join(tmpdir(), "aidlc-t230-codex-beside-claude-"));
     const machine = mkdtempSync(join(tmpdir(), "aidlc-t230-codex-beside-claude-machine-"));
@@ -2426,6 +2460,29 @@ describe("t230 dispatcher dev and compiled in-process modes", () => {
     }]);
   });
 
+  test("Athena host identity and host labels resolve from the .athena runtime directory", () => {
+    const projectDir = mkdtempSync(join(tmpdir(), "aidlc-t230-athena-identity-"));
+    tempProjects.add(projectDir);
+    mkdirSync(join(projectDir, ".athena", "tools"), { recursive: true });
+    const previousName = process.env.AIDLC_HARNESS_NAME;
+    const previousDir = process.env.AIDLC_HARNESS_DIR;
+    delete process.env.AIDLC_HARNESS_NAME;
+    process.env.AIDLC_HARNESS_DIR = ".athena";
+    try {
+      expect(runtimeHarnessName(projectDir, ".athena")).toBe("athenacode");
+      expect(typedHarnessHosts()).toContainEqual({
+        id: "athenacode",
+        name: "athenacode",
+        host: "Athena Code",
+      });
+    } finally {
+      if (previousName === undefined) delete process.env.AIDLC_HARNESS_NAME;
+      else process.env.AIDLC_HARNESS_NAME = previousName;
+      if (previousDir === undefined) delete process.env.AIDLC_HARNESS_DIR;
+      else process.env.AIDLC_HARNESS_DIR = previousDir;
+    }
+  });
+
   test("project harness discovery tolerates foreign metadata and preserves legacy precedence", () => {
     const projectDir = mkdtempSync(join(tmpdir(), "aidlc-t230-harness-discovery-"));
     tempProjects.add(projectDir);
@@ -2457,10 +2514,15 @@ describe("t230 dispatcher dev and compiled in-process modes", () => {
       distribution: "codex",
       harnessDir: ".codex",
     });
+    writeHarness(".athena", {
+      schemaVersion: 1,
+      distribution: "athenacode",
+      harnessDir: ".athena",
+    });
     writeHarness(".claude", { harnessDir: ".claude", rulesSubdir: "rules" });
 
     expect(discoverProjectHarnesses(projectDir).map((item) => item.distribution))
-      .toEqual(["claude", "codex", "opencode"]);
+      .toEqual(["claude", "codex", "opencode", "athenacode"]);
     expect(runtimeHarnessDir(projectDir)).toBe(".claude");
   });
 
@@ -3845,6 +3907,15 @@ describe("t230 dispatcher hook routing", () => {
       expect(legacy.target).toBe("guard-tool-call");
       expect(legacy.extraArgs).toEqual(["aidlc-product-lead-agent"]);
       expect(legacy.path.endsWith("aidlc-copilot-adapter.ts")).toBe(true);
+    }
+
+    const athena = resolveAction(["engine", "adapter", "athenacode", "session-start"]);
+    expect(athena.type).toBe("adapter");
+    if (athena.type === "adapter") {
+      expect(athena.harness).toBe("athenacode");
+      expect(athena.target).toBe("session-start");
+      expect(athena.extraArgs).toEqual([]);
+      expect(athena.path.endsWith("aidlc-athenacode-adapter.ts")).toBe(true);
     }
 
     const cursor = resolveAction(["engine", "adapter", "cursor", "validate-state"]);

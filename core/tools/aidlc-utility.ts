@@ -4313,10 +4313,15 @@ export async function collectDoctorReport(
           join(projectDir, ".opencode", "plugin", "aidlc-opencode-adapter.ts"),
         );
       }
-      const nativeTrustReady = legacy.length === 0 && nativeHooks && nativePermission;
+      const athenaTrustUnverified = currentHarnessName === "athenacode";
+      const nativeTrustReady = legacy.length === 0 && nativeHooks &&
+        (athenaTrustUnverified || nativePermission);
       results.push({
         pass: nativeTrustReady,
-        label: nativeTrustReady
+        severity: nativeTrustReady && athenaTrustUnverified ? "warn" : undefined,
+        label: nativeTrustReady && athenaTrustUnverified
+          ? "Native command trust: Athena Code hook commands are present; host permission enforcement is unverified"
+          : nativeTrustReady
           ? "Native command trust: host hooks and permission entries select the installed `aidlc` command" +
             (everyBashAllowed ? "; your Claude Code settings also allow every Bash command without asking (`Bash` in .claude/settings.json)" : "")
           : `Native command trust is incomplete: ${legacy.length} Bun-shaped entr${
@@ -4464,7 +4469,7 @@ export async function collectDoctorReport(
 
   // 2. Hook presence. Shipped projects route hook targets through the native
   // command; direct source execution may still invoke these TypeScript files.
-  // The Kiro and Codex trees also carry the authored host adapter.
+  // Kiro, Codex, and Athena carry their adapter in the harness tree.
   const harness = harnessDir();
   const harnessName = runtimeHarnessName(projectDir, harness);
   const isCopilot = harnessName === "copilot";
@@ -4757,6 +4762,7 @@ export async function collectDoctorReport(
     ];
     if (harness === ".kiro") tsHooks.push("aidlc-kiro-adapter");
     if (harness === ".codex") tsHooks.push("aidlc-codex-adapter");
+    if (harness === ".athena") tsHooks.push("aidlc-athenacode-adapter");
     if (isCopilot) {
       tsHooks.push(
         "aidlc-state-transition-guard",
@@ -4776,6 +4782,13 @@ export async function collectDoctorReport(
         pass: existsSync(hookPath),
         label: `${h}.ts present`,
         fix: `verify file exists in ${harness}/hooks/`,
+      });
+    }
+    if (harness === ".athena") {
+      results.push({
+        pass: existsSync(join(projectDir, harness, "hooks", "hooks.json")),
+        label: ".athena/hooks/hooks.json present (Athena hook wiring source; host discovery is unverified)",
+        fix: projectedFileRepair("athenacode", ".athena/hooks/hooks.json"),
       });
     }
     if (harness === ".aidlc") {
@@ -4974,6 +4987,18 @@ export async function collectDoctorReport(
     // bash or edit map; the person's ask or deny is gone here, said once.
     const shortForm = openCodeGlobalShortFormNote();
     if (shortForm) results.push({ pass: true, severity: "warn", label: shortForm });
+  } else if (harness === ".athena") {
+    for (const [file, purpose] of [
+      ["commands/aidlc.md", "/aidlc command source"],
+      ["skills/aidlc/SKILL.md", "conductor entry point"],
+      ["tools/data/harness.json", "project harness identity"],
+    ] as const) {
+      results.push({
+        pass: existsSync(join(projectDir, harness, file)),
+        label: `${file} present (${purpose}; host loading is unverified)`,
+        fix: projectedFileRepair("athenacode", `.athena/${file}`),
+      });
+    }
   } else {
     const settingsPath = join(projectDir, harness, "settings.json");
     results.push({
