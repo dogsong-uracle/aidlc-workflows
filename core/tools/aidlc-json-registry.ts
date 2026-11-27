@@ -268,14 +268,14 @@ function rowsInRoot(value: unknown, spec: JsonRegistrySpec, allowMissing = false
 
 function locateHandler(root: JsonNode, text: string, spec: JsonRegistrySpec, row: Row): { array: JsonNode; index: number } | null {
   const registry = root.members.findLast((member) => member.key === spec.key)?.node;
-  if (!registry || registry.kind !== "object") return null;
+  if (registry?.kind !== "object") return null;
   const event = registry.members.findLast((member) => member.key === row.event)?.node;
-  if (!event || event.kind !== "array") return null;
+  if (event?.kind !== "array") return null;
   for (const group of event.items) {
     const groupValue = nodeValue(text, group.node);
     if (!isRecord(groupValue) || canonical(groupValue[spec.matcherKey] ?? null) !== canonical(row.matcher ?? null)) continue;
     const handlers = group.node.members.findLast((member) => member.key === spec.handlersKey)?.node;
-    if (!handlers || handlers.kind !== "array") continue;
+    if (handlers?.kind !== "array") continue;
     const index = handlers.items.findIndex((item) => {
       const handler = nodeValue(text, item.node);
       return isRecord(handler) && typeof handler[spec.identityKey] === "string" &&
@@ -298,7 +298,7 @@ function addHandler(text: string, spec: JsonRegistrySpec, row: Row): string | nu
     root = parsed.root;
     registry = root.members.findLast((member) => member.key === spec.key)?.node;
   }
-  if (!registry || registry.kind !== "object") return null;
+  if (registry?.kind !== "object") return null;
   let event = registry.members.findLast((member) => member.key === row.event)?.node;
   if (!event) {
     text = insertEntry(text, root, registry, row.event, []);
@@ -308,12 +308,12 @@ function addHandler(text: string, spec: JsonRegistrySpec, row: Row): string | nu
     registry = root.members.findLast((member) => member.key === spec.key)?.node as JsonNode;
     event = registry.members.findLast((member) => member.key === row.event)?.node;
   }
-  if (!registry || registry.kind !== "object" || !event || event.kind !== "array") return null;
+  if (registry?.kind !== "object" || !event || event.kind !== "array") return null;
   for (const group of event.items) {
     const groupValue = nodeValue(text, group.node);
     if (!isRecord(groupValue) || canonical(groupValue[spec.matcherKey] ?? null) !== canonical(row.matcher ?? null)) continue;
     const handlers = group.node.members.findLast((member) => member.key === spec.handlersKey)?.node;
-    if (!handlers || handlers.kind !== "array") return null;
+    if (handlers?.kind !== "array") return null;
     return insertEntry(text, root, handlers, undefined, row.value);
   }
   return insertEntry(text, root, event, undefined, {

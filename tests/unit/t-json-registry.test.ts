@@ -33,13 +33,20 @@ const SHIPPED_V2 = JSON.stringify({
   },
 });
 
-function value(text: string): any {
-  return Bun.JSONC.parse(text.replace(/^\uFEFF/, ""));
+type ParsedHookRegistry = {
+  hooks: Record<string, Array<{ [key: string]: unknown; hooks: unknown[] }>> & {
+    SessionStart: Array<{ [key: string]: unknown; hooks: unknown[] }>;
+  };
+  [key: string]: unknown;
+};
+
+function value(text: string): ParsedHookRegistry {
+  return Bun.JSONC.parse(text.replace(/^\uFEFF/, "")) as ParsedHookRegistry;
 }
 
 function registrations(text: string): unknown[] {
   const parsed = value(text);
-  return parsed.hooks.SessionStart.flatMap((group: any) => group.hooks);
+  return parsed.hooks.SessionStart.flatMap((group) => group.hooks);
 }
 
 function merge(
@@ -115,11 +122,11 @@ describe("JSON registry root integration ownership", () => {
     const first = merge('{"hooks":{}}');
     expect("conflict" in first).toBe(false);
     if ("conflict" in first) return;
-    const edited = first.text.replace('"timeout": 30', '"timeout": 99');
+    const edited = first.text.replace(/("timeout"\s*:\s*)30/, (_match, prefix: string) => `${prefix}99`);
     const next = merge(edited, SHIPPED_V2, first.ownership);
     expect("conflict" in next).toBe(true);
     if ("conflict" in next) expect(next.conflict).toMatch(/modified|changed|ownership/i);
-    expect(edited).toContain('"timeout": 99');
+    expect(value(edited).hooks.SessionStart[0].hooks[0]).toEqual({ ...AIDLC_V1, timeout: 99 });
   });
 
   test("does not adopt an identical-looking pre-existing project registration without a baseline", () => {
@@ -190,10 +197,10 @@ describe("JSON registry root integration ownership", () => {
     const first = merge('{"hooks":{}}');
     expect("conflict" in first).toBe(false);
     if ("conflict" in first) return;
-    const edited = first.text.replace('"timeout": 30', '"timeout": 77');
+    const edited = first.text.replace(/("timeout"\s*:\s*)30/, (_match, prefix: string) => `${prefix}77`);
     const retired = merge(edited, '{"hooks":{}}', first.ownership);
     expect("conflict" in retired).toBe(true);
-    expect(edited).toContain('"timeout": 77');
+    expect(value(edited).hooks.SessionStart[0].hooks[0]).toEqual({ ...AIDLC_V1, timeout: 77 });
   });
 
 });
