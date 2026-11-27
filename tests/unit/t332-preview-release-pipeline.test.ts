@@ -1626,8 +1626,23 @@ describe("t332 preview publication pipeline", () => {
     expect(publish?.run).toContain("--channel preview");
     expect(publish?.run).toContain("--preview-plan \"$plan\"");
     expect(publish?.run).toContain("--expected-assets 15");
-    expect(previewText).toContain(
-      "awslabs/aidlc-workflows/.github/workflows/preview-release.yml",
+    const windowsProvenance = preview.jobs["windows-lifecycle"].steps?.find(
+      (step) => step.name === "Install, route through stable shim, and uninstall",
+    );
+    const unixProvenance = preview.jobs["unix-lifecycle"].steps?.find(
+      (step) => step.name === "Consume the checksummed release candidate",
+    );
+    expect(windowsProvenance?.run).toContain(
+      "$env:AIDLC_TEST_GH_REPOSITORY = $env:GITHUB_REPOSITORY",
+    );
+    expect(windowsProvenance?.run).toContain(
+      '$env:AIDLC_TEST_GH_WORKFLOW = "$env:GITHUB_REPOSITORY/.github/workflows/preview-release.yml"',
+    );
+    expect(unixProvenance?.run).toContain(
+      'AIDLC_TEST_GH_REPOSITORY="$GITHUB_REPOSITORY"',
+    );
+    expect(unixProvenance?.run).toContain(
+      'AIDLC_TEST_GH_WORKFLOW="$GITHUB_REPOSITORY/.github/workflows/preview-release.yml"',
     );
     expect(preview.jobs["release-result"].needs).toEqual(["validate", "full_suite", "test", "release"]);
     const result = preview.jobs["release-result"].steps?.find(
