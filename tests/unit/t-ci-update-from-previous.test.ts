@@ -13,6 +13,7 @@ import { gitBashPath, gitBashSkipReason } from "../harness/git-bash.ts";
 import { NATIVE_COMPILE_TIMEOUT_MS, NATIVE_STARTUP_TIMEOUT_MS } from "../harness/test-budget.ts";
 import {
   bareAidlcProblem,
+  hasDistribution,
   checksumMatches,
   childEnvironment,
   copyRuntimeAsset,
@@ -113,10 +114,18 @@ describe("ci-update-from-previous helpers", () => {
     ]);
   });
 
-  test("a harness the release ships that the check does not set up is named", () => {
+  test("previous Athena distribution is detected for a separate refresh journey", () => {
+    expect(hasDistribution({ distributions: [{ name: "claude" }] }, "athenacode")).toBe(false);
+    expect(hasDistribution({ distributions: [{ name: "athenacode" }] }, "athenacode")).toBe(true);
+    expect(hasDistribution({ distributions: [] }, "athenacode")).toBe(false);
+    expect(hasDistribution(null, "athenacode")).toBe(false);
+  });
+
+  test("the candidate Athena distribution is recognized without adding it to the host update journey", () => {
     const shipped = (names: string[]) => ({ distributions: names.map((name) => ({ name })) });
-    expect(uncheckedHarnesses(shipped(["claude", "codex", "copilot", "cursor", "kiro", "kiro-ide", "opencode"]))).toEqual([]);
-    expect(uncheckedHarnesses(shipped(["claude", "newcli"]))).toEqual(["newcli"]);
+    const updateJourney = ["claude", "codex", "copilot", "cursor", "kiro", "kiro-ide", "opencode"];
+    expect(uncheckedHarnesses(shipped([...updateJourney, "athenacode"]))).toEqual([]);
+    expect(uncheckedHarnesses(shipped([...updateJourney, "newcli"]))).toEqual(["newcli"]);
     expect(uncheckedHarnesses({})).toEqual([]);
   });
 

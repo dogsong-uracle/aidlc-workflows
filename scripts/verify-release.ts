@@ -19,6 +19,7 @@ import {
 } from "../core/tools/aidlc-release.ts";
 
 const RELEASE_DISTRIBUTIONS = [
+  "athenacode",
   "claude",
   "codex",
   "copilot",
