@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 2,
+  "repository": "dogsong-uracle/aidlc-workflows",
+  "preview": "v2.11.5-preview.20261127.1",
+  "source": "aa8f5d33c1d63e66c998060d2f8489035093dba0",
+  "controls": "aa8f5d33c1d63e66c998060d2f8489035093dba0",
+  "version": "2.11.5",
+  "date": "2026-11-27",
+  "notes": "Compatibility: refresh plus a step\n\nAI-DLC 2.11.5 adds Uracle Athena Code as a project harness in this fork, including native CLI selection, project-file projection, diagnostics, and release assets. Athena IDE loading and host-enforced permissions remain unverified.\n\n**Athena Code:** After installing or updating, run `aidlc config --harness athenacode --yes` in each project you want to set up for Athena Code. This projects the project-local files; it does not verify that Athena loads hooks or enforces permissions.\n\n### Athena Code\n\n- `aidlc config --harness athenacode` recognizes the Athena Code harness and projects its `.athena` runtime files into the project.\n- Setup includes Athena-specific modes and the `/aidlc` project command, while `aidlc doctor` checks the static project setup without claiming that Athena loaded or enforced it.\n- The adapter is limited to the statically identified SessionStart and Stop events. Actual Athena hook discovery, model-context delivery, tool blocking, and Stop continuation have not been verified in the IDE.\n\n### Installer and release pipeline\n\n- The fork release includes native CLI and runtime assets for installing and configuring the Athena Code harness. Set `AIDLC_RELEASE_REPOSITORY=dogsong-uracle/aidlc-workflows` when using the fork's installer so downloads and provenance checks use the fork.\n- This Preview passed its artifact checksum/provenance checks and candidate install/uninstall lifecycle checks on the tested platforms. Update from the previous custom-version fork release is a separate check and did not pass.\n\n### Validation status\n\n- The Full Suite run was cancelled after its report recorded a failing `t243-install-mechanism` assertion and failures in live-test jobs. Cancellation is not passing evidence.\n- Updating from the previous published fork release was not verified. The native check rejected `v2.11.4-uracle.athenacode.20261126.1` because its version does not match the installer's accepted version format; the copy check received HTTP 404 because that release has no `aidlc-copy-runtime` archive. Do not treat this Preview as proof that update from that historical release works.",
+  "warnings": [
+    "> **Warning:** Full Suite failed for this source. A Full Suite failure report ends these notes.",
+    "> **Warning:** Updating from the last release to this preview failed in its checks. Stay on your release or wait for the next preview."
+  ],
+  "previous": null,
+  "contributors": []
+}

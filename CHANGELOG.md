@@ -1,6 +1,30 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [2.11.5] - 2026-11-27
+
+Compatibility: refresh plus a step
+
+AI-DLC 2.11.5 adds Uracle Athena Code as a project harness in this fork, including native CLI selection, project-file projection, diagnostics, and release assets. Athena IDE loading and host-enforced permissions remain unverified.
+
+**Athena Code:** After installing or updating, run `aidlc config --harness athenacode --yes` in each project you want to set up for Athena Code. This projects the project-local files; it does not verify that Athena loads hooks or enforces permissions.
+
+### Athena Code
+
+- `aidlc config --harness athenacode` recognizes the Athena Code harness and projects its `.athena` runtime files into the project.
+- Setup includes Athena-specific modes and the `/aidlc` project command, while `aidlc doctor` checks the static project setup without claiming that Athena loaded or enforced it.
+- The adapter is limited to the statically identified SessionStart and Stop events. Actual Athena hook discovery, model-context delivery, tool blocking, and Stop continuation have not been verified in the IDE.
+
+### Installer and release pipeline
+
+- The fork release includes native CLI and runtime assets for installing and configuring the Athena Code harness. Set `AIDLC_RELEASE_REPOSITORY=dogsong-uracle/aidlc-workflows` when using the fork's installer so downloads and provenance checks use the fork.
+- This Preview passed its artifact checksum/provenance checks and candidate install/uninstall lifecycle checks on the tested platforms. Update from the previous custom-version fork release is a separate check and did not pass.
+
+### Validation status
+
+- The Full Suite run was cancelled after its report recorded a failing `t243-install-mechanism` assertion and failures in live-test jobs. Cancellation is not passing evidence.
+- Updating from the previous published fork release was not verified. The native check rejected `v2.11.4-uracle.athenacode.20261126.1` because its version does not match the installer's accepted version format; the copy check received HTTP 404 because that release has no `aidlc-copy-runtime` archive. Do not treat this Preview as proof that update from that historical release works.
+
 ## [2.11.4] - 2026-11-13
 
 Compatibility: breaking for scripts
