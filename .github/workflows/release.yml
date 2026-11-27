@@ -23,6 +23,7 @@ jobs:
       tag: ${{ steps.validate.outputs.tag }}
       sha: ${{ steps.validate.outputs.sha }}
       controls: ${{ steps.validate.outputs.controls }}
+      previous: ${{ steps.previous.outputs.tag }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -43,6 +44,17 @@ jobs:
           test "$GITHUB_REF" = "refs/tags/$RELEASE_TAG"
           test "$(git rev-parse "HEAD^{commit}")" = "$GITHUB_SHA"
           bun scripts/release-promotion.ts verify --tag "$RELEASE_TAG" --repository "$GITHUB_REPOSITORY"
+      - name: Find the previous stable release
+        id: previous
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          previous="$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases \
+            --limit 100 --json tagName --jq '[.[].tagName | select(. != env.RELEASE_TAG and test("^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"))][0] // empty')"
+          echo "tag=$previous" >>"$GITHUB_OUTPUT"
 
   # Promotion preserves the preview's recorded results. It does not rerun PR
   # CI or Full Suite, or turn an earlier failure into a passing test result.
@@ -213,8 +225,8 @@ jobs:
             -Value 'aidlc-lifecycle-provenance-fixture'
           $ghFixture = Join-Path $env:RUNNER_TEMP 'aidlc-gh.ps1'
           $env:AIDLC_TEST_GH_MARKER = Join-Path $env:RUNNER_TEMP 'aidlc-gh-verified'
-          $env:AIDLC_TEST_GH_REPOSITORY = 'awslabs/aidlc-workflows'
-          $env:AIDLC_TEST_GH_WORKFLOW = 'awslabs/aidlc-workflows/.github/workflows/release.yml'
+          $env:AIDLC_TEST_GH_REPOSITORY = $env:GITHUB_REPOSITORY
+          $env:AIDLC_TEST_GH_WORKFLOW = "$env:GITHUB_REPOSITORY/.github/workflows/release.yml"
           $manifest = Get-Content -Raw -LiteralPath (Join-Path $releaseRoot 'version.json') |
             ConvertFrom-Json
           $env:AIDLC_TEST_GH_SOURCE_REF = $manifest.sourceRef
@@ -358,6 +370,12 @@ jobs:
             & $command doctor --project-dir $project --quiet
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
+          $athenaProject = Join-Path $env:RUNNER_TEMP "aidlc-athenacode-project-$([Guid]::NewGuid().ToString('N'))"
+          [IO.Directory]::CreateDirectory($athenaProject) | Out-Null
+          & $command config --project-dir $athenaProject --harness athenacode --mcp none --yes --quiet
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $command doctor --project-dir $athenaProject --quiet
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & $command uninstall --purge --yes --quiet
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           # Cleanup verifies and removes individual files before removing empty directories.
@@ -467,8 +485,8 @@ jobs:
             AIDLC_BIN_DIR="$AIDLC_BIN_DIR" \
             AIDLC_GH_BIN="$gh_bin" \
             AIDLC_TEST_GH_MARKER="$gh_marker" \
-            AIDLC_TEST_GH_REPOSITORY="awslabs/aidlc-workflows" \
-            AIDLC_TEST_GH_WORKFLOW="awslabs/aidlc-workflows/.github/workflows/release.yml" \
+            AIDLC_TEST_GH_REPOSITORY="$GITHUB_REPOSITORY" \
+            AIDLC_TEST_GH_WORKFLOW="$GITHUB_REPOSITORY/.github/workflows/release.yml" \
             AIDLC_TEST_GH_SOURCE_REF="$manifest_source_ref" \
             AIDLC_TEST_GH_SOURCE_DIGEST="$(
               sed -n 's/.*"sourceDigest":[[:space:]]*"\([a-f0-9]*\)".*/\1/p' \
@@ -498,6 +516,11 @@ jobs:
             env PATH="/usr/bin:/bin" "$command" doctor \
               --project-dir "$project" --quiet
           done
+          athena_project="$(mktemp -d "$RUNNER_TEMP/aidlc-athenacode-project.XXXXXX")"
+          env PATH="/usr/bin:/bin" "$command" config \
+            --project-dir "$athena_project" --harness athenacode --mcp none --yes --quiet
+          env PATH="/usr/bin:/bin" "$command" doctor \
+            --project-dir "$athena_project" --quiet
 
   # A person on the last stable release types `aidlc update`, gets this
   # release, and their hooks, project refresh and doctor still work; the copy
@@ -506,6 +529,7 @@ jobs:
   # lifecycle checks (preview-release.yml reports it and still publishes).
   update-from-previous:
     needs: [validate, stage-release]
+    if: ${{ needs.validate.outputs.previous != '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -528,26 +552,14 @@ jobs:
         with:
           name: release-candidate
           path: build/release
-      # The token stays in this step: the releases under test never see it.
-      - name: Find the last stable release
-        id: previous
-        shell: bash
-        env:
-          CANDIDATE_TAG: ${{ needs.validate.outputs.tag }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          previous="$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases \
-            --limit 20 --json tagName --jq '[.[].tagName | select(. != env.CANDIDATE_TAG)] | .[0] // empty')"
-          test -n "$previous"
-          echo "tag=$previous" >>"$GITHUB_OUTPUT"
+      # The person configured the fork. The first release has no prior release to update from.
       # The work each person leaves open is driven by the scripted stand-in, which reads the generated trees.
       - run: bun scripts/package.ts
       - name: Update from the last release
         shell: bash
         env:
           CHANNEL: ${{ matrix.channel }}
-          PREVIOUS_TAG: ${{ steps.previous.outputs.tag }}
+          PREVIOUS_TAG: ${{ needs.validate.outputs.previous }}
         run: |
           set -euo pipefail
           printf 'aidlc-lifecycle-provenance-fixture\n' >build/release/aidlc-release.intoto.jsonl
@@ -555,7 +567,7 @@ jobs:
 
   publish:
     needs: [validate, musl-smoke, windows-lifecycle, unix-lifecycle, update-from-previous]
-    if: ${{ !cancelled() && needs.validate.result == 'success' && needs.musl-smoke.result == 'success' && needs.windows-lifecycle.result == 'success' && needs.unix-lifecycle.result == 'success' && needs.update-from-previous.result == 'success' }}
+    if: ${{ !cancelled() && needs.validate.result == 'success' && needs.musl-smoke.result == 'success' && needs.windows-lifecycle.result == 'success' && needs.unix-lifecycle.result == 'success' && (needs.update-from-previous.result == 'success' || (needs.update-from-previous.result == 'skipped' && needs.validate.outputs.previous == '')) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

@@ -39,6 +39,8 @@ import kiro from "../harness/kiro/manifest.ts";
 import type { WorkResult } from "../tests/harness/work-open.ts";
 
 export const HARNESSES = ["claude", "codex", "copilot", "cursor", "kiro", "kiro-ide", "opencode"] as const;
+const CANDIDATE_DISTRIBUTIONS = HARNESSES;
+const CANDIDATE_ONLY_DISTRIBUTIONS = ["athenacode"] as const;
 const HARNESS_DIRS: Record<(typeof HARNESSES)[number], string> = {
   claude: ".claude",
   codex: ".codex",
@@ -49,14 +51,15 @@ const HARNESS_DIRS: Record<(typeof HARNESSES)[number], string> = {
   opencode: ".opencode",
 };
 // Where a copied project's own tool is: `bun <dir>/tools/aidlc.ts`.
-const COPY_TOOL_DIRS: Record<(typeof HARNESSES)[number], string> = {
-  claude: ".claude",
-  codex: ".codex",
-  copilot: ".aidlc",
-  cursor: ".cursor",
-  kiro: ".kiro",
-  "kiro-ide": ".kiro",
-  opencode: ".aidlc",
+const COPY_TOOL_PATHS: Record<(typeof HARNESSES)[number] | "athenacode", string> = {
+  claude: ".claude/tools/aidlc.ts",
+  codex: ".codex/tools/aidlc.ts",
+  copilot: ".aidlc/tools/aidlc.ts",
+  cursor: ".cursor/tools/aidlc.ts",
+  kiro: ".kiro/tools/aidlc.ts",
+  "kiro-ide": ".kiro/tools/aidlc.ts",
+  opencode: ".aidlc/tools/aidlc.ts",
+  athenacode: ".athena/tools/aidlc.ts",
 };
 // A hook command a tree wires: the installed `aidlc engine ...`, a copy's own
 // `bun <dir>/tools/aidlc.ts engine ...`, or a copy's adapter file itself
@@ -94,7 +97,15 @@ const PERSON_GIT = {
 
 export function uncheckedHarnesses(versionJson: unknown): string[] {
   const listed = (versionJson as { distributions?: Array<{ name?: unknown }> } | null)?.distributions ?? [];
-  return listed.map((entry) => String(entry?.name ?? "")).filter((name) => !(HARNESSES as readonly string[]).includes(name));
+  return listed.map((entry) => String(entry?.name ?? "")).filter((name) =>
+    !(CANDIDATE_DISTRIBUTIONS as readonly string[]).includes(name) &&
+    !(CANDIDATE_ONLY_DISTRIBUTIONS as readonly string[]).includes(name)
+  );
+}
+
+export function hasDistribution(versionJson: unknown, name: string): boolean {
+  const distributions = (versionJson as { distributions?: Array<{ name?: unknown }> } | null)?.distributions;
+  return Array.isArray(distributions) && distributions.some((item) => item?.name === name);
 }
 
 export function hookCommands(treeDir: string): string[] {
@@ -317,7 +328,8 @@ function releaseReadsTypedNames(dir: string): boolean {
 async function check(previous: string, candidate: string, target: string, root: string, copy: boolean): Promise<number> {
   const deadline = Date.now() + CHECK_BUDGET_MS;
   const within = (ms: number) => Math.max(1_000, Math.min(ms, deadline - Date.now()));
-  const unchecked = uncheckedHarnesses(JSON.parse(readFileSync(join(candidate, "version.json"), "utf-8")));
+  const candidateManifest = JSON.parse(readFileSync(join(candidate, "version.json"), "utf-8")) as unknown;
+  const unchecked = uncheckedHarnesses(candidateManifest);
   const machine = join(root, "machine");
   const bin = join(machine, "bin");
   const pathKey = Object.keys(process.env).find((key) => key.toUpperCase() === "PATH") ?? "PATH";
@@ -359,7 +371,7 @@ async function check(previous: string, candidate: string, target: string, root: 
 
   // A copied project's own tool, run in the project as the guide's commands are.
   const tool = (what: string, harness: string, project: string, args: string[]) =>
-    run(what, process.execPath, [join(COPY_TOOL_DIRS[harness as (typeof HARNESSES)[number]], "tools", "aidlc.ts"), ...args], {}, project);
+    run(what, process.execPath, [join(project, COPY_TOOL_PATHS[harness as (typeof HARNESSES)[number] | "athenacode"]), ...args], {}, project);
   const previousRuntime = join(root, "previous-runtime", "runtime");
   const candidateRuntime = join(root, "candidate-runtime", "runtime");
   if (copy) {
@@ -402,6 +414,13 @@ async function check(previous: string, candidate: string, target: string, root: 
     const before = aidlc("version before the update", ["version"]);
     if (!before.output.includes(previous)) fail(`the installed release reports "${before.output}", not ${previous}`);
   }
+  const previousManifestPath = join(machine, "versions", previous, "version.json");
+  const previousManifest = !copy && existsSync(previousManifestPath)
+    ? JSON.parse(readFileSync(previousManifestPath, "utf-8")) as unknown
+    : null;
+  const checkAthena = copy
+    ? existsSync(join(previousRuntime, "athenacode"))
+    : hasDistribution(previousManifest, "athenacode");
 
   // 2. A project for every harness, the person's own code committed, set up by the previous release.
   const projects = HARNESSES.map((harness) => {
@@ -422,6 +441,23 @@ async function check(previous: string, candidate: string, target: string, root: 
     }
     return { harness, project };
   });
+  let athenaProject: string | undefined;
+  if (checkAthena) {
+    athenaProject = join(root, "project-athenacode");
+    mkdirSync(athenaProject, { recursive: true });
+    const initialized = spawnSync("git", ["init", "--quiet", athenaProject], { encoding: "utf-8", timeout: STEP_TIMEOUT_MS });
+    if (initialized.status !== 0) fail(`git init in the Athena project failed: ${initialized.stderr ?? ""}`);
+    if (copy) {
+      cpSync(join(previousRuntime, "athenacode"), athenaProject, { recursive: true });
+      tool(`the copy's setup for athenacode on ${previous}`, "athenacode", athenaProject, [
+        "config", "--from", previousRuntime, "--harness", "athenacode",
+      ]);
+    } else {
+      aidlc(`aidlc config --harness athenacode on ${previous}`, [
+        "config", "--project-dir", athenaProject, "--harness", "athenacode", "--mcp", "none", "--quiet",
+      ]);
+    }
+  }
   if (failures.length > 0) return report(failures);
 
   // 3. In every project the person's work waits at a gate, left there on the
@@ -547,6 +583,19 @@ async function check(previous: string, candidate: string, target: string, root: 
     else aidlc(`aidlc doctor for ${harness}`, ["doctor", "--project-dir", project, "--quiet"]);
     const result = failures.length === known ? "all passed" : `${failures.length - known} failed`;
     console.log(`${harness}: ${count} hook command(s) before and after the refresh, the refresh, and doctor: ${result}`);
+  }
+  if (athenaProject) {
+    if (copy) {
+      tool(`the Athena copy's refresh from ${target}`, "athenacode", athenaProject, [
+        "config", "--from", candidateRuntime, "--harness", "athenacode", "--yes",
+      ]);
+      tool(`the Athena copy's doctor on ${target}`, "athenacode", athenaProject, ["doctor", "--quiet"]);
+    } else {
+      aidlc("aidlc config --yes for athenacode", [
+        "config", "--project-dir", athenaProject, "--harness", "athenacode", "--mcp", "none", "--yes", "--quiet",
+      ]);
+      aidlc("aidlc doctor for athenacode", ["doctor", "--project-dir", athenaProject, "--quiet"]);
+    }
   }
 
   // 6. A new chat in every project: the person picks their work up and approves.

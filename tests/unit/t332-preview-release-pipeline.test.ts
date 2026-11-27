@@ -1380,6 +1380,7 @@ describe("t332 preview publication pipeline", () => {
       env?: Record<string, string>;
       outputs?: Record<string, string>;
       steps?: Array<{
+        id?: string;
         name?: string;
         if?: string;
         run?: string;
@@ -1422,7 +1423,14 @@ describe("t332 preview publication pipeline", () => {
       tag: `\${{ steps.validate.outputs.tag }}`,
       sha: `\${{ steps.validate.outputs.sha }}`,
       controls: `\${{ steps.validate.outputs.controls }}`,
+      previous: `\${{ steps.previous.outputs.tag }}`,
     });
+    const previousReleaseStep = stable.jobs.validate.steps?.find(
+      (step) => step.name === "Find the previous stable release",
+    );
+    expect(previousReleaseStep?.id).toBe("previous");
+    expect(previousReleaseStep?.run).toContain("--exclude-pre-releases");
+    expect(previousReleaseStep?.run).toContain("test(\"^v(0|[1-9][0-9]*)");
     expect(stable.jobs.release.environment).toBe("release");
     expect(stable.jobs["release-result"].needs).toEqual(["validate", "release"]);
     expect(stableText).not.toContain("plan-preview-release.ts");
@@ -1561,11 +1569,31 @@ describe("t332 preview publication pipeline", () => {
       }
       expect(required.has("full_suite_gate"), `stable ${name} does not repeat Full Suite`).toBe(false);
     }
-    // A stable release people on the last release cannot update to does not
-    // publish; a preview reports it.
+    // A first stable release has no prior version to exercise; later releases
+    // must run the update journey against the exact previous stable tag.
+    expect(stable.jobs["update-from-previous"].if).toContain("needs.validate.outputs.previous != ''");
+    const priorUpdate = stable.jobs["update-from-previous"].steps?.find(
+      (step) => step.name === "Update from the last release",
+    );
+    expect(priorUpdate?.env?.PREVIOUS_TAG).toBe(`\${{ needs.validate.outputs.previous }}`);
+    expect(priorUpdate?.env?.PREVIOUS_TAG).not.toBe(`\${{ github.event.repository.default_branch }}`);
+    // Athena's project-local lifecycle smoke is separate from the seven-host
+    // update simulator and runs on both native release lifecycle platforms.
+    const windowsLifecycle = stable.jobs["windows-lifecycle"].steps?.find(
+      (step) => step.name === "Install, route through stable shim, and uninstall",
+    );
+    const unixLifecycle = stable.jobs["unix-lifecycle"].steps?.find(
+      (step) => step.name === "Consume the checksummed release candidate",
+    );
+    expect(windowsLifecycle?.run).toContain("--harness athenacode --mcp none --yes");
+    expect(windowsLifecycle?.run).toContain("doctor --project-dir");
+    expect(unixLifecycle?.run).toContain("--harness athenacode --mcp none --yes");
+    expect(unixLifecycle?.run).toMatch(/doctor \\\s*--project-dir/);
     expect(stable.jobs.publish.needs)
       .toEqual(["validate", "musl-smoke", "windows-lifecycle", "unix-lifecycle", "update-from-previous"]);
     expect(stable.jobs.publish.if).toContain("needs.update-from-previous.result == 'success'");
+    expect(stable.jobs.publish.if).toContain("needs.update-from-previous.result == 'skipped'");
+    expect(stable.jobs.publish.if).toContain("needs.validate.outputs.previous == ''");
     expect(preview.jobs.publish.needs).not.toContain("update-from-previous");
     expect(stable.jobs.release.needs).toEqual(["validate", "publish"]);
 

@@ -243,14 +243,14 @@ installation uses `status: "failed"`, exit code 1, `data.installed: true`, and
 `AIDLC_RELEASE_BASE_URL` and `AIDLC_CA_BUNDLE` provide installer defaults;
 explicit options win. `AIDLC_RELEASE_REPOSITORY` selects both the GitHub
 repository used for default downloads and the repository trusted by provenance
-verification. It defaults to `awslabs/aidlc-workflows`.
+verification. It defaults to `dogsong-uracle/aidlc-workflows` in this fork.
 `AIDLC_RELEASE_WORKFLOW` overrides the trusted signer workflow. By default,
 installers select `<AIDLC_RELEASE_REPOSITORY>/.github/workflows/release.yml`
 for stable versions and
 `<AIDLC_RELEASE_REPOSITORY>/.github/workflows/preview-release.yml` for preview
-versions. Set the override explicitly for a fork or mirror whose workflow path
-differs, together with its release base URL; changing the download URL alone
-does not change the provenance trust root. `AIDLC_GH_BIN` selects an explicit
+versions. For a fork or mirror, set `AIDLC_RELEASE_REPOSITORY` to the signer
+repository as well as setting its release base URL; changing the download URL
+alone never changes the provenance trust root. `AIDLC_GH_BIN` selects an explicit
 GitHub CLI executable for both installers. If that executable is missing or
 lacks `--signer-workflow`, `--source-ref`, or `--source-digest`, provenance
 verification is skipped while checksum verification remains mandatory.
@@ -259,6 +259,37 @@ Fork releases need no GitHub App or additional repository. The tag workflow
 publishes to the same repository with its short-lived `GITHUB_TOKEN`. Its final
 job uses the `release` environment, which can require reviewer approval before
 publication.
+
+For this fork, run **Preview Release** from the fork's default branch and review
+its validation and prerelease assets before promotion. A preview is not the
+latest stable release: the stable `releases/latest/download/install.sh` URL is
+updated only after a promoted `vX.Y.Z` release passes the release workflow.
+For an isolated post-publication check, point `HOME`, XDG paths and install
+locations at a disposable temporary workspace, install from the latest URL, and
+run project-local configuration and doctor checks:
+
+```bash
+sandbox="$(mktemp -d)"
+export HOME="$sandbox/home"
+export XDG_CONFIG_HOME="$HOME/.config"
+export XDG_CACHE_HOME="$HOME/.cache"
+export XDG_DATA_HOME="$HOME/.local/share"
+export AIDLC_INSTALL_ROOT="$sandbox/aidlc"
+export AIDLC_BIN_DIR="$sandbox/bin"
+project="$sandbox/project"
+mkdir -p "$HOME" "$project"
+curl -fsSL \
+  https://github.com/dogsong-uracle/aidlc-workflows/releases/latest/download/install.sh \
+  -o "$sandbox/install.sh"
+sh "$sandbox/install.sh" --yes --quiet
+"$AIDLC_BIN_DIR/aidlc" config \
+  --project-dir "$project" --harness athenacode --mcp none --yes
+"$AIDLC_BIN_DIR/aidlc" doctor --project-dir "$project" --quiet
+rm -rf "$sandbox"
+```
+
+These checks validate the CLI's Athena project projection and doctor report;
+they do not claim that Athena IDE hook discovery or UI enforcement was exercised.
 
 `AIDLC_INSTALL_ROOT` and `AIDLC_BIN_DIR` override the machine and command
 locations. Those paths must be absolute on Unix. On Windows, the selected bin

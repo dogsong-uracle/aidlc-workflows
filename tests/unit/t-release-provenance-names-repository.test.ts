@@ -81,9 +81,9 @@ describe.skipIf(process.platform === "win32")("a provenance failure names what i
     delete process.env.AIDLC_RELEASE_REPOSITORY;
     const message = failure(directory, manifest);
     expect(message).toContain(GH_FAILURE);
-    expect(message).toContain("awslabs/aidlc-workflows");
-    expect(message).toContain("awslabs/aidlc-workflows/.github/workflows/preview-release.yml");
-    expect(message).toContain("Get the release from awslabs/aidlc-workflows");
+    expect(message).toContain("dogsong-uracle/aidlc-workflows");
+    expect(message).toContain("dogsong-uracle/aidlc-workflows/.github/workflows/preview-release.yml");
+    expect(message).toContain("Get the release from dogsong-uracle/aidlc-workflows");
     expect(message).toContain("AIDLC_RELEASE_REPOSITORY=<owner>/<name>");
   });
 
@@ -94,5 +94,13 @@ describe.skipIf(process.platform === "win32")("a provenance failure names what i
     expect(message).toContain("alice/aidlc-workflows/.github/workflows/preview-release.yml");
     expect(message).not.toContain("awslabs/");
     expect(message).not.toContain("AIDLC_RELEASE_REPOSITORY");
+  });
+
+  test("only the configured release repository changes the provenance trust root", () => {
+    const { directory, manifest } = refusingRelease();
+    process.env.AIDLC_RELEASE_REPOSITORY = "example-fork/aidlc-workflows";
+    const message = failure(directory, { ...manifest, sourceDigest: "a".repeat(40) });
+    expect(message).toContain("example-fork/aidlc-workflows/.github/workflows/preview-release.yml");
+    expect(message).not.toContain("dogsong-uracle/");
   });
 });
